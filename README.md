@@ -18,7 +18,7 @@ El objetivo es maximizar la ganancia esperada en el juego de Blackjack interactu
 El proyecto está construido en Python. Necesitas las siguientes librerías para ejecutarlo y generar los gráficos:
 
 ```bash
-pip install numpy matplotlib
+pip install -r requirements.txt
 ```
 
 ## Instrucciones de Ejecución
