@@ -1,180 +1,96 @@
-# Probamos el crupier y el environment sin el agente
+import matplotlib.pyplot as plt
+import numpy as np
+import os
 from src.environment import BlackjackEnvironment
-from src.crupier import Crupier
-from src.utils import crear_baraja, calcular_puntaje
+from src.agent import AgenteQLearning
 
-def probar_crupier():
-    # probar crupier jugando varias manos
-    print("PROBANDO EL CRUPIER")
-    
-    # Creamos un crupier
-    crupier = Crupier()
-    
-    # Jugamos 5 manos de prueba
-    for i in range(5):
-        print(f"\nMano {i+1}:")
-        # Damos cartas iniciales al crupier
-        carta_visible = crupier.repartir_carta_inicial()
-        print(f"  Carta visible del crupier: {carta_visible}")
-        print(f"  Mano inicial del crupier: {crupier.mano}")
-        
-        # El crupier juega
-        puntaje_final, tiene_as = crupier.jugar()
-        print(f"  Mano final del crupier: {crupier.mano}")
-        print(f"  Puntaje final: {puntaje_final}")
-        
-        if puntaje_final > 21:
-            print(f"  El crupier se paso de 21!")
-        # Reiniciamos para la siguiente mano
-        crupier.reiniciar()
-
-
-def probar_environment():
-    print("PROBANDO EL ENVIRONMENT")
-    
-    # Creamos el environment
+def entrenar_agente(episodios=100000):
+    # Crear entorno y agente
     env = BlackjackEnvironment()
-    # Jugamos 3 manos de prueba
-    for i in range(3):
-        print(f"\n--- Mano {i+1} ---")
-        
-        # Reiniciamos el juego
+    # Usamos los hiperparametros del paper (alpha=0.015, gamma=1.0)
+    agent = AgenteQLearning(alpha=0.015, gamma=1.0, epsilon=1.0, epsilon_decay=0.99995)
+    
+    historia_victorias = []  # 1 (Ganar), 0 (Empate/Perder)
+    win_rates = []           # Promedio movil para el grafico
+    
+    print(f"Iniciando Entrenamiento ({episodios} episodios)")
+    print(f"Alpha={agent.alpha}, Gamma={agent.gamma}")
+    
+    for e in range(episodios):
+        # Reiniciar episodio
         estado = env.reset()
-        suma_jugador = estado[0]
-        carta_crupier = estado[1]
-        tiene_as = estado[2]
-        
-        print(f"Estado inicial:")
-        print(f"  Mano jugador: {env.mano_jugador}")
-        print(f"  Suma jugador: {suma_jugador}")
-        print(f"  Carta visible crupier: {carta_crupier}")
-        print(f"  As utilizable: {tiene_as}")
-        
-        # Jugamos la mano con una estrategia simple
-        # Estrategia: pedir si tenemos menos de 17, plantarse si tenemos 17 o mas
         terminado = False
         
         while not terminado:
-            # Decidimos accion segun estrategia simple
-            if suma_jugador < 17:
-                accion = 1  # Pedir
-                print(f"\n  Accion: PEDIR (suma actual: {suma_jugador})")
-            else:
-                accion = 0  # Plantarse
-                print(f"\n  Accion: PLANTARSE (suma actual: {suma_jugador})")
+            # 1 El agente elige accion
+            accion = agent.elegir_accion(estado)
             
-            # Ejecutamos la accion
+            # 2 El entorno responde
             siguiente_estado, recompensa, terminado = env.step(accion)
             
-            # Actualizamos el estado
-            suma_jugador = siguiente_estado[0]
-            carta_crupier = siguiente_estado[1]
-            tiene_as = siguiente_estado[2]
+            # 3 El agente aprende (actualiza Q-Table)
+            agent.actualizar_q_value(estado, accion, recompensa, siguiente_estado, terminado)
             
-            print(f"  Nueva mano: {env.mano_jugador}")
-            print(f"  Nueva suma: {suma_jugador}")
+            # Avanzar estado
+            estado = siguiente_estado
             
-            # Si el juego termino, mostramos el resultado
             if terminado:
-                print(f"\n  JUEGO TERMINADO")
-                print(f"  Mano crupier: {env.crupier.mano}")
-                puntaje_crupier, _ = env.crupier.obtener_puntaje()
-                print(f"  Puntaje crupier: {puntaje_crupier}")
-                print(f"  Puntaje jugador: {suma_jugador}")
+                # Guardamos 1 si gano, 0 si no
+                # Nota: En Blackjack ganar es +1.
+                historia_victorias.append(1 if recompensa == 1 else 0)
                 
-                if recompensa > 0:
-                    print(f"  RESULTADO: VICTORIA! (recompensa: +1)")
-                elif recompensa < 0:
-                    print(f"  RESULTADO: DERROTA (recompensa: -1)")
-                else:
-                    print(f"  RESULTADO: EMPATE (recompensa: 0)")
+                # Reducimos la exploracion
+                agent.disminuir_epsilon()
+        
+        # Registro de progreso cada 1000 episodios
+        if (e + 1) % 1000 == 0:
+            # Calculamos el promedio de victorias de los ultimos 1000 juegos
+            promedio_actual = np.mean(historia_victorias[-1000:])
+            win_rates.append(promedio_actual)
+            
+            print(f"Episodio {e+1}: Win Rate={promedio_actual:.1%} | Epsilon={agent.epsilon:.4f}")
 
-
-def jugar_manualmente():
-    # Esta funcion permite jugar una mano manualmente
-    print("\n" + "=" * 50)
-    print("JUGAR UNA MANO MANUALMENTE")
-    print("=" * 50)
+    # Generacion del Grafico
+    if not os.path.exists("results"):
+        os.makedirs("results")
+        
+    plt.figure(figsize=(10, 6))
+    plt.plot(win_rates, label=f'Alpha={agent.alpha}, Gamma={agent.gamma}')
+    plt.title("Evolucion del Aprendizaje (Win Rate por cada 1000 juegos)")
+    plt.xlabel("Bloques de 1000 Episodios")
+    plt.ylabel("Tasa de Victorias")
+    plt.legend()
+    plt.grid(True)
+    plt.savefig("results/entrenamiento_blackjack.png")
+    print(f"\nEntrenamiento finalizado. Grafico guardado en 'results/entrenamiento_blackjack.png'")
     
-    # Creamos el environment
+    return agent
+
+def demostracion(agente):
+    """Juega una partida con el agente ya entrenado y muestra los pasos."""
+    print("\nDEMOSTRACION FINAL: AGENTE VS CRUPIER")
     env = BlackjackEnvironment()
-    
-    # Reiniciamos el juego
     estado = env.reset()
-    suma_jugador = estado[0]
-    carta_crupier = estado[1]
-    tiene_as = estado[2]
-    
-    print(f"\nEstado inicial:")
-    print(f"  Tu mano: {env.mano_jugador}")
-    print(f"  Tu suma: {suma_jugador}")
-    print(f"  Carta visible del crupier: {carta_crupier}")
-    print(f"  Tienes As utilizable: {tiene_as}")
-    
-    # Jugamos la mano
     terminado = False
     
+    print(f"Mano Inicial: {env.mano_jugador} (Suma: {estado[0]})")
+    print(f"Carta Visible Crupier: {estado[1]}")
+    
     while not terminado:
-        # Preguntamos al usuario que hacer
-        print(f"\nTu suma actual: {suma_jugador}")
-        print("Que quieres hacer?")
-        print("  0 = Plantarse")
-        print("  1 = Pedir carta")
+        # Usamos elegir_mejor_accion (sin exploracion) para probar lo aprendido
+        accion = agente.elegir_mejor_accion(estado)
+        accion_str = "PEDIR" if accion == 1 else "PLANTARSE"
+        print(f"--> Agente decide: {accion_str}")
         
-        # Leemos la accion del usuario
-        accion_input = input("Ingresa tu accion (0 o 1): ")
+        estado, recompensa, terminado = env.step(accion)
         
-        # Validamos la entrada
-        if accion_input == "0":
-            accion = 0
-        elif accion_input == "1":
-            accion = 1
-        else:
-            print("Accion invalida, intenta de nuevo")
-            continue
-        
-        # Ejecutamos la accion
-        siguiente_estado, recompensa, terminado = env.step(accion)
-        
-        # Actualizamos el estado
-        suma_jugador = siguiente_estado[0]
-        
-        if accion == 1 and not terminado:
-            print(f"Nueva carta! Tu mano: {env.mano_jugador}")
-            print(f"Tu nueva suma: {suma_jugador}")
-        
-        # Si el juego termino, mostramos el resultado
-        if terminado:
-            print(f"\n{'='*50}")
-            print("JUEGO TERMINADO")
-            print(f"{'='*50}")
-            print(f"Tu mano final: {env.mano_jugador}")
-            print(f"Tu puntaje: {suma_jugador}")
-            print(f"Mano del crupier: {env.crupier.mano}")
-            puntaje_crupier, _ = env.crupier.obtener_puntaje()
-            print(f"Puntaje del crupier: {puntaje_crupier}")
-            
-            if recompensa > 0:
-                print(f"\nFELICIDADES! GANASTE!")
-            elif recompensa < 0:
-                print(f"\nPERDISTE :(")
-            else:
-                print(f"\nEMPATE!")
+        if accion == 1:
+            print(f"    Recibe carta. Nueva Suma: {estado[0]}")
+    
+    print(f"Resultado final: {recompensa} (1=Gano, -1=Perdio, 0=Empate)")
+    print(f"Mano Crupier: {env.crupier.mano}")
 
-
-# Programa principal
 if __name__ == "__main__":
-    print("PRUEBAS DEL JUEGO DE BLACKJACK")
-    # Probamos el crupier
-    probar_crupier()
-    
-    # Probamos el environment
-    probar_environment()
-    
-    # Preguntamos si quiere jugar manualmente
-    jugar = input("Quieres jugar una mano manualmente? (s/n): ")
-    
-    if jugar.lower() == "s" or jugar.lower() == "si":
-        jugar_manualmente()
-    
-    print("FIN DE LAS PRUEBAS")
+
+    agente_entrenado = entrenar_agente(episodios=100000)
+    demostracion(agente_entrenado)
