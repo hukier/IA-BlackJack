@@ -3,7 +3,7 @@ import random
 def crear_baraja():
     """baraja simulada de cartas, donde devuelve una aleatoria con los valores 1(As), 2-9, 10 (J, Q, K)"""
 
-    cards = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10]
+    cards = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 10, 10]
     return random.choice(cards)
 
 def calcular_puntaje(hand):
