@@ -32,3 +32,10 @@ python main.py
 ## Resultados esperados
 
 El entrenamiento genera un gráfico en `results/entrenamiento_blackjack.png.` Se espera que el agente alcance una tasa de victorias (Win Rate) cercana al 42-43%, lo cual es el estándar para un jugador óptimo en Blackjack (dada la ventaja matemática de la casa).
+
+## Referencias
+
+El algortimo y los hiperparametros utilizados en este proyecto se basan en el siguiente estudio:
+
+- **Charles de Granville** - _Applying Reinforcement Learning to Blackjack Using Q-Learning_. University of Oklahoma.
+- 📄 [Ver Paper Original (PDF)](docs/DeGranville_Final_Paper.pdf)
