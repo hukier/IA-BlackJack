@@ -3,6 +3,7 @@ import numpy as np
 import os
 from src.environment import BlackjackEnvironment
 from src.agent import AgenteQLearning
+from src.desempeño import AnalizadorDesempeño
 
 def entrenar_agente(episodios=100000):
     # Crear entorno y agente
@@ -12,6 +13,7 @@ def entrenar_agente(episodios=100000):
     
     historia_victorias = []  # 1 (Ganar), 0 (Empate/Perder)
     win_rates = []           # Promedio movil para el grafico
+    analizador = AnalizadorDesempeño()  # Añadido para analisis
     
     print(f"Iniciando Entrenamiento ({episodios} episodios)")
     print(f"Alpha={agent.alpha}, Gamma={agent.gamma}")
@@ -39,6 +41,9 @@ def entrenar_agente(episodios=100000):
                 # Nota: En Blackjack ganar es +1.
                 historia_victorias.append(1 if recompensa == 1 else 0)
                 
+                # Registrar en el analizador
+                analizador.registrar_partida(e, recompensa, agent.epsilon)
+                
                 # Reducimos la exploracion
                 agent.disminuir_epsilon()
         
@@ -55,7 +60,7 @@ def entrenar_agente(episodios=100000):
         os.makedirs("results")
         
     plt.figure(figsize=(10, 6))
-    plt.plot(win_rates, label=f'Alpha={agent.alpha}, Gamma={agent.gamma}')
+    plt.plot(win_rates, label=f'Alpha={agent.alpha}, Gamma={agent.gamma}', color='purple')
     plt.title("Evolucion del Aprendizaje (Win Rate por cada 1000 juegos)")
     plt.xlabel("Bloques de 1000 Episodios")
     plt.ylabel("Tasa de Victorias")
@@ -63,6 +68,11 @@ def entrenar_agente(episodios=100000):
     plt.grid(True)
     plt.savefig("results/entrenamiento_blackjack.png")
     print(f"\nEntrenamiento finalizado. Grafico guardado en 'results/entrenamiento_blackjack.png'")
+    
+    # Generar analisis de desempeño
+    print("\nGenerando analisis de desempeño")
+    analizador.imprimir_estadisticas_resumen()
+    analizador.guardar_todos_los_graficos(agent, carpeta_salida="results")
     
     return agent
 
